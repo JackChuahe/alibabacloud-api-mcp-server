@@ -194,7 +194,7 @@ Local mode is based on stdio process communication, with MCP Server running as a
 
 ## Reference Documentation
 
-- 📖 **Official Documentation**: [OpenAPI MCP Server User Guide](https://help.aliyun.com/zh/openapi/user-guide/openapi-mcp-server-guide)
+- 📖 **Official Documentation**: [OpenAPI MCP Server User Guide]([https://help.aliyun.com/zh/openapi/user-guide/openapi-mcp-server-guide](https://www.alibabacloud.com/help/en/openapi/user-guide/openapi-mcp-server-guide))
 - 🔧 **Technical Support**: Get technical support through Alibaba Cloud ticket system or official forums
 - 💬 **Community Exchange**: Join the Alibaba Cloud Developer Community for discussions, DingTalk Group: 136325002292
 
