@@ -197,6 +197,7 @@
 - 📖 **官方文档**：[OpenAPI MCP Server 使用指南](https://help.aliyun.com/zh/openapi/user-guide/openapi-mcp-server-guide)
 - 🔧 **技术支持**：通过阿里云工单系统或官方论坛获取技术支持
 - 💬 **社区交流**：加入阿里云开发者社区参与讨论，钉钉群：136325002292
+- 通过AgentScope使用示例<https://github.com/agentscope-ai/agentscope/tree/main/examples/alibabacloud_api_mcp>
 
 ---
 
