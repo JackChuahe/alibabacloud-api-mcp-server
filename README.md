@@ -29,6 +29,7 @@
     - [其他服务](#其他服务)
 - [快速开始](#快速开始)
   - [远程模式接入](#远程模式接入)
+  - [通过本地静态凭证接入](#通过本地静态凭证接入)
   - [本地模式部署](#本地模式部署)
 - [参考文档](#参考文档)
 
@@ -42,6 +43,8 @@
 
 通过阿里云官方托管的 OpenAPI MCP Server，无需本地部署即可使用全量阿里云服务。适合快速集成、低维护成本的场景。
 
+阿里云现已提供 API MCP Server Core。该模式基于远程 CLI 模式运行，通过个位数的核心 tools 即可编排并触达阿里云全量能力（覆盖数万 OpenAPI）。
+
 ### 本地模式
 
 基于 stdio 进程模式，在本地运行 MCP Server。适合对数据安全性要求高、需要自定义配置的场景。
@@ -50,6 +53,7 @@
 
 ### 技术规格
 
+- **核心模式**：API MCP Server Core（远程 CLI 模式）
 - **支持协议**：SSE (Server-Sent Events)、Streamable HTTP
 - **认证方式**：OAuth 2.0
 - **API 数量**：支持阿里云数万个 OpenAPI
@@ -167,6 +171,12 @@
    - 浏览系统 MCP 服务
    - 选择需要的 OpenAPI
    - 自定义 API 参数
+
+### 通过本地静态凭证接入
+
+现在阿里云 API MCP Server 可以通过本地静态凭证直接登录。你可以在本地配置阿里云 AccessKey 或已有凭证文件，然后通过 Alibaba Cloud MCP Proxy 自动换取访问 OpenAPI MCP Server 所需的令牌，无需在 MCP 客户端中手动维护 OAuth Token。
+
+代理工具的安装、MCP 客户端配置、安全策略和预检查说明请参考：[Alibaba Cloud MCP Proxy 使用说明](README-PROXY.md)。
 
 ### 本地模式部署
 

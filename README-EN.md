@@ -29,6 +29,7 @@
     - [Other Services](#other-services)
 - [Quick Start](#quick-start)
   - [Remote Mode Access](#remote-mode-access)
+  - [Access with Local Static Credentials](#access-with-local-static-credentials)
   - [Local Mode Deployment](#local-mode-deployment)
 - [Reference Documentation](#reference-documentation)
 
@@ -42,6 +43,8 @@ Alibaba Cloud MCP Server is a powerful cloud service integration platform that p
 
 Use the full range of Alibaba Cloud services through the officially hosted Alibaba Cloud OpenAPI MCP Server without local deployment. Suitable for scenarios requiring rapid integration and low maintenance costs.
 
+Alibaba Cloud now provides API MCP Server Core. This mode follows a remote CLI pattern, enabling orchestration of the full Alibaba Cloud capability surface with a single-digit number of core tools (covering tens of thousands of OpenAPIs).
+
 ### Local Mode
 
 Based on stdio process mode, running MCP Server locally. Suitable for scenarios with high data security requirements and need for custom configuration.
@@ -50,6 +53,7 @@ Based on stdio process mode, running MCP Server locally. Suitable for scenarios 
 
 ### Technical Specifications
 
+- **Core Mode**: API MCP Server Core (remote CLI mode)
 - **Supported Protocols**: SSE (Server-Sent Events), Streamable HTTP
 - **Authentication Method**: OAuth 2.0
 - **API Count**: Supports tens of thousands of Alibaba Cloud OpenAPIs
@@ -167,6 +171,12 @@ Local mode is based on stdio process communication, with MCP Server running as a
    - Browse system MCP services
    - Select required OpenAPI
    - Customize API parameters
+
+### Access with Local Static Credentials
+
+Alibaba Cloud API MCP Server now supports direct login through local static credentials. You can configure an Alibaba Cloud AccessKey or an existing local credential profile, then use Alibaba Cloud MCP Proxy to automatically exchange it for the token required by OpenAPI MCP Server. This removes the need to manually maintain OAuth tokens in MCP client configuration.
+
+For proxy installation, MCP client configuration, safety policies, and pre-check usage, see: [Alibaba Cloud MCP Proxy User Guide](README-PROXY-EN.md).
 
 ### Local Mode Deployment
 
