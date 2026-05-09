@@ -31,6 +31,7 @@
   - [Remote Mode Access](#remote-mode-access)
   - [Access with Local Static Credentials](#access-with-local-static-credentials)
   - [Local Mode Deployment](#local-mode-deployment)
+- [Best Practices](#best-practices)
 - [Reference Documentation](#reference-documentation)
 
 ## Overview
@@ -201,6 +202,10 @@ For proxy installation, MCP client configuration, safety policies, and pre-check
    ```bash
    npm start  # or follow the specific repository's startup instructions
    ```
+
+## Best Practices
+
+- 📘 [OpenAPI MCP Server Core Best Practices](docs/best-practices-en.md): Learn how to combine `Skill` and `safety policy` with MCP Server Core to build an efficient, secure, and production-ready Agent integration solution.
 
 ## Reference Documentation
 
