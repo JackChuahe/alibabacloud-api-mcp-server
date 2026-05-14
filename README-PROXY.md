@@ -105,24 +105,20 @@ export ALIBABACLOUD_MCP_SAFETY_POLICY="ecs:describe-*=allow,*=deny"
 uvx alibabacloud.mcp-proxy@latest
 ```
 
-## 预检查
+## 预检查（可选）
 
-连接上游 MCP Server 前，可以使用 `pre-check` 检查本地 OAuth 应用是否正确安装和授权：
+当使用默认的 Client ID 时，无需单独执行预检查，代理会自动完成认证流程。
+
+如果指定了自定义的 `--client-id`，可以使用 `pre-check` 检查该 OAuth 应用是否正确安装和授权：
 
 ```bash
-uvx alibabacloud.mcp-proxy@latest pre-check
+uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID
 ```
 
 国际站：
 
 ```bash
-uvx alibabacloud.mcp-proxy@latest pre-check --site-type INTL
-```
-
-指定自定义 OAuth Client ID：
-
-```bash
-uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID
+uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID --site-type INTL
 ```
 
 ## 配置参考

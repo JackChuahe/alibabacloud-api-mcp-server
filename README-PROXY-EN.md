@@ -113,24 +113,20 @@ export ALIBABACLOUD_MCP_SAFETY_POLICY="ecs:describe-*=allow,*=deny"
 uvx alibabacloud.mcp-proxy@latest
 ```
 
-### Pre-check
+### Pre-check (Optional)
 
-Before connecting to the upstream MCP server, you can verify that your local OAuth application is properly installed and authorized by running the **pre-check** command. This starts a lightweight local HTTP server, opens your browser to the Alibaba Cloud OAuth authorization page, and waits for the callback.
+When using the default Client ID, there is no need to run a separate pre-check — the proxy handles authentication automatically.
+
+If you specify a custom `--client-id`, you can use the **pre-check** command to verify that the OAuth application is properly installed and authorized:
 
 ```bash
-uvx alibabacloud.mcp-proxy@latest pre-check
+uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID
 ```
 
 For international sites:
 
 ```bash
-uvx alibabacloud.mcp-proxy@latest pre-check --site-type INTL
-```
-
-With a custom OAuth client ID:
-
-```bash
-uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID
+uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID --site-type INTL
 ```
 
 If the pre-check passes, you will see:
