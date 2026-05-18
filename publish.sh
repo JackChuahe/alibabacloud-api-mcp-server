@@ -57,6 +57,64 @@ done
 python3 -m pip install --quiet --upgrade build twine
 
 # ---------------------------------------------------------------------------
+# Step 1.5: Verify the local version has not already been published
+# ---------------------------------------------------------------------------
+echo "==> Verifying local version is newer than the published one..."
+
+PACKAGE_NAME="$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["name"])')"
+LOCAL_VERSION="$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+
+if [ "$USE_TEST_PYPI" = true ]; then
+    INDEX_URL="https://test.pypi.org/pypi/${PACKAGE_NAME}/json"
+else
+    INDEX_URL="https://pypi.org/pypi/${PACKAGE_NAME}/json"
+fi
+
+# curl uses the system CA bundle; --fail surfaces 4xx/5xx as a non-zero exit so
+# we can distinguish "package not yet published" (404) from real network errors.
+HTTP_CODE="$(curl -sS -o /tmp/.publish_index.json -w "%{http_code}" \
+    --connect-timeout 5 --max-time 15 "${INDEX_URL}" || true)"
+
+case "$HTTP_CODE" in
+    200)
+        PUBLISHED_VERSION="$(python3 -c "
+import json, sys
+from packaging.version import Version
+data = json.load(open('/tmp/.publish_index.json'))
+releases = list(data.get('releases', {}).keys())
+print(sorted(releases, key=Version)[-1] if releases else '')
+")"
+        if [ -z "$PUBLISHED_VERSION" ]; then
+            echo "    PyPI knows the package but lists no releases yet. Proceeding with ${LOCAL_VERSION}."
+        elif python3 -c "
+from packaging.version import Version
+import sys
+sys.exit(0 if Version('${LOCAL_VERSION}') > Version('${PUBLISHED_VERSION}') else 1)
+" ; then
+            echo "    Local ${LOCAL_VERSION} > published ${PUBLISHED_VERSION}. OK."
+        else
+            echo "Error: local version ${LOCAL_VERSION} is not newer than published ${PUBLISHED_VERSION}."
+            echo "       Bump 'version' in pyproject.toml before publishing."
+            exit 1
+        fi
+        ;;
+    404)
+        echo "    No prior release detected for ${PACKAGE_NAME} on this index. Proceeding with ${LOCAL_VERSION}."
+        ;;
+    *)
+        echo "Error: failed to query ${INDEX_URL} (HTTP ${HTTP_CODE:-no-response})."
+        echo "       Refusing to publish without confirming the latest published version."
+        echo "       Re-run when the network is reachable, or skip with: VERSION_CHECK=skip ./publish.sh ..."
+        if [ "${VERSION_CHECK:-}" = "skip" ]; then
+            echo "    VERSION_CHECK=skip set; bypassing the safety check at your own risk."
+        else
+            exit 1
+        fi
+        ;;
+esac
+rm -f /tmp/.publish_index.json
+
+# ---------------------------------------------------------------------------
 # Step 2: Clean previous builds
 # ---------------------------------------------------------------------------
 echo "==> Cleaning previous builds..."

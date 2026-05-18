@@ -5,6 +5,7 @@ import logging
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import anyio
 
@@ -20,6 +21,29 @@ from alibabacloud.mcp_proxy.proxy.server import AlibabaCloudMcpProxyServer
 from alibabacloud.mcp_proxy.session.reconnecting_session import ReconnectingSession
 from alibabacloud.mcp_proxy.transport.upstream_http import StreamableHttpConnectionFactory
 from alibabacloud.mcp_proxy.transport.upstream_sse import SseConnectionFactory
+
+# Mapping for the `server plugin-telemetry` sub-command:
+#   (argparse_dest, payload_key, is_required)
+# The CLI flag is the kebab-case form of the dest (e.g. start_timestamp ->
+# --start-timestamp). Required fields mirror the OpenAPI schema; optional
+# fields are forwarded only when the user supplies them.
+_PLUGIN_TELEMETRY_FIELDS: tuple[tuple[str, str, bool], ...] = (
+    ("client_name", "clientName", True),
+    ("event_type", "eventType", True),
+    ("start_timestamp", "startTimestamp", True),
+    ("tool_name", "toolName", True),
+    ("session_id", "sessionId", True),
+    ("status", "status", True),
+    ("end_timestamp", "endTimestamp", False),
+    ("turn", "turn", False),
+    ("mcp_tool", "mcpTool", False),
+    ("cli_command", "cliCommand", False),
+    ("query_summary", "querySummary", False),
+    ("skill_name", "skillName", False),
+    ("tool_request_id", "toolRequestId", False),
+    ("error_message", "errorMessage", False),
+    ("plugin_name", "pluginName", False),
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,7 +213,51 @@ def build_parser() -> argparse.ArgumentParser:
         "If not specified, the default for the chosen site type is used.",
     )
 
+    # --- plugin-telemetry sub-command ---
+    plugin_telemetry_parser = subparsers.add_parser(
+        "plugin-telemetry",
+        help="Send a telemetry event to the Alibaba Cloud OpenAPI backend.",
+    )
+    _add_plugin_telemetry_arguments(plugin_telemetry_parser)
+
     return parser
+
+
+def _add_plugin_telemetry_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add CLI flags for `server plugin-telemetry` (kebab → camelCase mapping)."""
+    # ── required fields ───────────────────────────────────────────────────
+    parser.add_argument("--client-name", dest="client_name", required=True,
+                        help="Originating client name, e.g. 'claude-code'.")
+    parser.add_argument("--event-type", dest="event_type", required=True,
+                        help="Telemetry event type, e.g. 'tool_call', 'skill_invocation'.")
+    parser.add_argument(
+        "--start-timestamp", "--timestamp",
+        dest="start_timestamp", required=True,
+        help="Event start time (ISO-8601). '--timestamp' is accepted as an alias.",
+    )
+    parser.add_argument("--tool-name", dest="tool_name", required=True,
+                        help="Name of the tool being reported on.")
+    parser.add_argument("--session-id", dest="session_id", required=True,
+                        help="Caller-defined session identifier.")
+    parser.add_argument("--status", dest="status", required=True,
+                        help="Outcome status, e.g. 'success', 'failure'.")
+    # ── optional fields ───────────────────────────────────────────────────
+    parser.add_argument("--end-timestamp", dest="end_timestamp",
+                        help="Event end time (ISO-8601).")
+    parser.add_argument("--turn", dest="turn", type=int,
+                        help="Conversational turn number (int32).")
+    parser.add_argument("--mcp-tool", dest="mcp_tool", help="MCP tool identifier.")
+    parser.add_argument("--cli-command", dest="cli_command", help="Issued CLI command, if any.")
+    parser.add_argument("--query-summary", dest="query_summary", help="Short summary of the user query.")
+    parser.add_argument("--skill-name", dest="skill_name", help="Skill name, if applicable.")
+    parser.add_argument("--tool-request-id", dest="tool_request_id", help="Caller's tool request id.")
+    parser.add_argument("--error-message", dest="error_message", help="Error message when status='failure'.")
+    parser.add_argument("--plugin-name", dest="plugin_name", help="Plugin name, e.g. 'alibabacloud'.")
+    # ── operational flags ─────────────────────────────────────────────────
+    parser.add_argument("--verbose", action="store_true",
+                        help="Log INFO+ to stderr (default: WARNING+).")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Suppress all logging.")
 
 
 def parse_config(
@@ -318,12 +386,76 @@ def _run_proxy_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_telemetry_payload(args: argparse.Namespace) -> dict[str, Any]:
+    """Translate parsed CLI args into the schema-compliant JSON payload."""
+    payload: dict[str, Any] = {}
+    for cli_attr, payload_key, _ in _PLUGIN_TELEMETRY_FIELDS:
+        value = getattr(args, cli_attr, None)
+        if value is None:
+            continue
+        if isinstance(value, str) and not value:
+            # Skip empty optional strings; the backend treats absence and "" the same
+            # way and dropping them keeps logs cleaner.
+            if payload_key in {"clientName", "eventType", "startTimestamp",
+                                "toolName", "sessionId", "status"}:
+                payload[payload_key] = value  # honor required-but-empty literally
+            continue
+        payload[payload_key] = value
+    return payload
+
+
+def _configure_oneshot_logging(args: argparse.Namespace) -> None:
+    """Configure logging for one-shot CLI commands (writes to stderr)."""
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.handlers.clear()
+
+    if getattr(args, "quiet", False):
+        root.setLevel(logging.CRITICAL)
+        return
+
+    level = logging.INFO if getattr(args, "verbose", False) else logging.WARNING
+    root.setLevel(level)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(level)
+    handler.setFormatter(fmt)
+    root.addHandler(handler)
+
+
+def _run_plugin_telemetry_command(args: argparse.Namespace) -> int:
+    """Execute `server plugin-telemetry`: build payload, POST it, surface result."""
+    # Local import keeps the proxy startup path free from any telemetry imports.
+    from alibabacloud.mcp_proxy.telemetry import report_telemetry
+
+    _configure_oneshot_logging(args)
+    payload = _build_telemetry_payload(args)
+
+    try:
+        response = report_telemetry(payload)
+    except Exception as exc:  # noqa: BLE001 - hard safety net; should never trigger
+        print(f"Error: telemetry call raised unexpectedly: {exc}", file=sys.stderr)
+        return 1
+
+    if response is None:
+        # report_telemetry has already logged the failure detail.
+        return 1
+
+    body = response.get("body") if isinstance(response, dict) else None
+    if isinstance(body, dict) and body.get("success") is False:
+        print(f"Telemetry rejected by backend: {body}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "pre-check":
         return _run_precheck_command(args)
+
+    if args.command == "plugin-telemetry":
+        return _run_plugin_telemetry_command(args)
 
     # Default: run the proxy (covers both explicit "proxy" and no sub-command)
     return _run_proxy_command(args)

@@ -121,6 +121,58 @@ uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID
 uvx alibabacloud.mcp-proxy@latest pre-check --client-id YOUR_OAUTH_CLIENT_ID --site-type INTL
 ```
 
+## 插件遥测上报（Plugin Telemetry）
+
+为了帮助持续改进 MCP Proxy 的稳定性与体验，本工具提供 `plugin-telemetry` 子命令，**由调用方按需主动上报**一次操作的执行轨迹（trace）。该子命令是**可选的、显式触发**的 —— 不调用即不会有任何遥测数据上传，本工具不存在被动收集模式。
+
+### 使用方式
+
+```bash
+uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
+  --client-name "claude-code" \
+  --event-type "mcp_tool_use" \
+  --start-timestamp "2026-05-18T10:30:00Z" \
+  --tool-name "AlibabaCloud___CallCLI" \
+  --session-id "<匿名会话ID>" \
+  --status "success"
+```
+
+#### 字段说明与脱敏建议
+
+| 字段 | 必填 | 用途 | 是否可直接上报 |
+|------|:----:|------|---------------|
+| `--client-name` | ✅ | 调用方标识（如 `claude-code`） | ✅ 可上报 |
+| `--event-type` | ✅ | 事件类型（如 `tool_call`、`skill_invocation`） | ✅ 可上报 |
+| `--start-timestamp` | ✅ | 开始时间（ISO-8601） | ✅ 可上报 |
+| `--end-timestamp` |   | 结束时间 | ✅ 可上报 |
+| `--tool-name` | ✅ | 工具名 | ✅ 可上报 |
+| `--session-id` | ✅ | 会话 ID | ⚠️ **必须匿名化**，建议使用调用方生成的 UUID |
+| `--status` | ✅ | 结果状态（`success` / `failure`） | ✅ 可上报 |
+| `--turn` |   | 轮次序号 | ✅ 可上报 |
+| `--mcp-tool` |   | MCP 工具标识 | ✅ 可上报 |
+| `--skill-name` |   | 技能名 | ✅ 可上报 |
+| `--plugin-name` |   | 插件名 | ✅ 可上报 |
+| `--tool-request-id` |   | 调用方生成的请求 ID（建议 UUID） | ✅ 可上报 |
+| `--cli-command` |   | CLI 命令 | ⚠️ **务必脱敏**：仅保留命令形态，移除参数中的 ID / 凭证 / 文件路径 |
+| `--query-summary` |   | 查询摘要 | ⚠️ **务必脱敏**：只放意图分类，不要把用户原始 prompt 直接复制进来 |
+| `--error-message` |   | 错误信息 | ⚠️ **务必脱敏**：只保留错误类型与错误码，剔除 token、AK、IP、内网域名等 |
+
+### 隐私说明（Customer Notice）
+
+- **数据用途**：上报数据仅用于阿里云分析 MCP Proxy 的使用模式、错误率与性能瓶颈，不会与任何账号下的具体业务资源关联，也不会用于商业用途。
+- **设计原则：必要的 action 与成功状态，不上报敏感信息。** 请勿将以下内容放入 `--cli-command`、`--query-summary`、`--error-message` 等自由文本字段：
+  - 阿里云 AccessKey、SecurityToken、Bearer Token、OAuth Code
+  - 用户或 RAM 子账号的真实姓名、手机号、邮箱、身份证号
+  - 数据库密码、私钥、证书、私有 endpoint
+  - 个人身份信息（PII）、内网 IP / 域名
+  - 涉及合规（GDPR / PIPL 等）的客户业务数据
+- **建议在调用前进行本地脱敏**：如不确定字段是否安全，建议在传入 CLI 之前用正则替换掉 `(?i)ak[a-z0-9]{16,}`、`/Users/[^/]+/`、邮箱、手机号、UUID 之类的高风险片段。
+- **可选 / 显式触发**：不调用 `plugin-telemetry` 即不会有任何上报；本工具不会在 `proxy` / `pre-check` 等其它子命令中静默上传。
+
+### 故障行为
+
+`plugin-telemetry` 走"尽力而为（best-effort）"模型：内置最多 4 次尝试、每次连接/读取超时 3 秒，失败时仅在 stderr 输出 WARN/ERROR 日志，**不会**抛出异常或影响调用方主流程。退出码：`0` 成功 / `1` 重试用尽仍失败 / `2` 参数错误。
+
 ## 配置参考
 
 每个 CLI 参数都有对应的环境变量。CLI 参数优先级高于环境变量。
