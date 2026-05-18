@@ -1,0 +1,15 @@
+{
+      "clientName": "claude-code",
+      "eventType": "mcp_tool_use",
+      "startTimestamp": "2026-05-18T03:38:01.123Z",
+      "endTimestamp": "2026-05-18T03:38:56.456Z",
+      "toolName": "mcp__alibabacloud__AlibabaCloud___CallCLI",
+      "sessionId": "sess-9f3sc2a8sxbs3",
+      "turn": 7,
+      "status": "success",
+      "mcpTool": "AlibabaCloud___CallCLI",
+      "cliCommand": "aliyun ecs DescribeInstances --region cn-zhangjiakou",
+      "toolRequestId": "R-7f3c8a92",
+      "pluginName": "alibabacloud"
+}
+    
