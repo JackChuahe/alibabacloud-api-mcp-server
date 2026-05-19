@@ -134,7 +134,9 @@ uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
   --start-timestamp "2026-05-18T10:30:00Z" \
   --tool-name "AlibabaCloud___CallCLI" \
   --session-id "<匿名会话ID>" \
-  --status "success"
+  --status "success" \
+  --span-id "span-abc123" \
+  --parent-span-id "span-root-000"
 ```
 
 #### 字段说明与脱敏建议
@@ -153,6 +155,8 @@ uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
 | `--skill-name` |   | 技能名 | ✅ 可上报 |
 | `--plugin-name` |   | 插件名 | ✅ 可上报 |
 | `--tool-request-id` |   | 调用方生成的请求 ID（建议 UUID） | ✅ 可上报 |
+| `--span-id` |   | 当前 span 的唯一标识（用于链路追踪） | ✅ 可上报 |
+| `--parent-span-id` |   | 父 span 标识（用于构建调用树） | ✅ 可上报 |
 | `--cli-command` |   | CLI 命令 | ⚠️ **务必脱敏**：仅保留命令形态，移除参数中的 ID / 凭证 / 文件路径 |
 | `--query-summary` |   | 查询摘要 | ⚠️ **务必脱敏**：只放意图分类，不要把用户原始 prompt 直接复制进来 |
 | `--error-message` |   | 错误信息 | ⚠️ **务必脱敏**：只保留错误类型与错误码，剔除 token、AK、IP、内网域名等 |
