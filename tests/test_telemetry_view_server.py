@@ -107,3 +107,35 @@ async def test_get_session_detail_returns_tree(client: TestClient) -> None:
 async def test_get_session_detail_not_found(client: TestClient) -> None:
     resp = await client.get("/api/sessions/claude-code/nonexistent")
     assert resp.status == 404
+
+
+@pytest.mark.asyncio
+async def test_index_serves_html(client: TestClient) -> None:
+    resp = await client.get("/")
+    assert resp.status == 200
+    text = await resp.text()
+    assert "Telemetry Viewer" in text
+    assert "app.js" in text
+
+
+@pytest.mark.asyncio
+async def test_static_css_served(client: TestClient) -> None:
+    resp = await client.get("/static/style.css")
+    assert resp.status == 200
+    text = await resp.text()
+    assert "--bg-primary" in text
+
+
+@pytest.mark.asyncio
+async def test_static_js_served(client: TestClient) -> None:
+    resp = await client.get("/static/app.js")
+    assert resp.status == 200
+    text = await resp.text()
+    assert "renderSessionList" in text
+
+
+@pytest.mark.asyncio
+async def test_sse_endpoint_returns_event_stream(client: TestClient) -> None:
+    resp = await client.get("/api/events")
+    assert resp.status == 200
+    assert "text/event-stream" in resp.headers.get("Content-Type", "")
