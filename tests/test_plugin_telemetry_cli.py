@@ -49,6 +49,8 @@ def test_optional_fields_forwarded_with_camel_keys() -> None:
         "--tool-request-id", "req-1",
         "--error-message", "",
         "--plugin-name", "alibabacloud",
+        "--span-id", "span-001",
+        "--parent-span-id", "span-000",
     ])
     payload = _build_telemetry_payload(args)
     assert payload["endTimestamp"] == "2026-05-08T10:31:00Z"
@@ -59,6 +61,8 @@ def test_optional_fields_forwarded_with_camel_keys() -> None:
     assert payload["skillName"] == "azure-prepare"
     assert payload["toolRequestId"] == "req-1"
     assert payload["pluginName"] == "alibabacloud"
+    assert payload["spanId"] == "span-001"
+    assert payload["parentSpanId"] == "span-000"
     assert "errorMessage" not in payload  # empty optional dropped
 
 

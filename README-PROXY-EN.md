@@ -148,7 +148,9 @@ uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
   --start-timestamp "2026-05-18T10:30:00Z" \
   --tool-name "AlibabaCloud___CallCLI" \
   --session-id "<anonymous-session-id>" \
-  --status "success"
+  --status "success" \
+  --span-id "span-abc123" \
+  --parent-span-id "span-root-000"
 ```
 
 #### Fields & Sanitization Guidance
@@ -167,6 +169,8 @@ uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
 | `--skill-name` |   | Skill name | ✅ Yes |
 | `--plugin-name` |   | Plugin name | ✅ Yes |
 | `--tool-request-id` |   | Caller-generated UUID | ✅ Yes |
+| `--span-id` |   | Current span identifier (for distributed tracing) | ✅ Yes |
+| `--parent-span-id` |   | Parent span identifier (to build the call tree) | ✅ Yes |
 | `--cli-command` |   | CLI command line | ⚠️ **Sanitize**: keep the command shape; strip IDs, credentials, file paths from the arguments. |
 | `--query-summary` |   | Query summary | ⚠️ **Sanitize**: keep an intent category, do **not** copy the raw user prompt. |
 | `--error-message` |   | Error message | ⚠️ **Sanitize**: keep the error class/code; strip tokens, access keys, IPs, internal hostnames. |

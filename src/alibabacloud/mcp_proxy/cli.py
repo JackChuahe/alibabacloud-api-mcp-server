@@ -43,6 +43,8 @@ _PLUGIN_TELEMETRY_FIELDS: tuple[tuple[str, str, bool], ...] = (
     ("tool_request_id", "toolRequestId", False),
     ("error_message", "errorMessage", False),
     ("plugin_name", "pluginName", False),
+    ("span_id", "spanId", False),
+    ("parent_span_id", "parentSpanId", False),
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -253,6 +255,8 @@ def _add_plugin_telemetry_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tool-request-id", dest="tool_request_id", help="Caller's tool request id.")
     parser.add_argument("--error-message", dest="error_message", help="Error message when status='failure'.")
     parser.add_argument("--plugin-name", dest="plugin_name", help="Plugin name, e.g. 'alibabacloud'.")
+    parser.add_argument("--span-id", dest="span_id", help="Trace span identifier.")
+    parser.add_argument("--parent-span-id", dest="parent_span_id", help="Parent trace span identifier.")
     # ── operational flags ─────────────────────────────────────────────────
     parser.add_argument("--verbose", action="store_true",
                         help="Log INFO+ to stderr (default: WARNING+).")
