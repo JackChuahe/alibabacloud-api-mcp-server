@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from alibabacloud.mcp_proxy.cli import main, parse_config
+from alibabacloud.mcp_proxy.cli import build_parser, main, parse_config
 from alibabacloud.mcp_proxy.config import SiteType
 from alibabacloud.mcp_proxy.auth.token_provider import TokenAcquisitionError
 
@@ -120,3 +120,23 @@ def test_main_runtime_token_error_without_debug() -> None:
         pytest.raises(SystemExit, match="boom"),
     ):
         main([])
+
+
+def test_telemetry_view_subcommand_default_port() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["telemetry-view"])
+    assert args.command == "telemetry-view"
+    assert args.tv_port == 18321
+    assert args.tv_no_open is False
+
+
+def test_telemetry_view_subcommand_custom_port() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["telemetry-view", "--port", "9999"])
+    assert args.tv_port == 9999
+
+
+def test_telemetry_view_subcommand_no_open() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["telemetry-view", "--no-open"])
+    assert args.tv_no_open is True
