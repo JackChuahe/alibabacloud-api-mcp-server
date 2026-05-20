@@ -68,6 +68,15 @@ async def handle_sessions(request: web.Request) -> web.Response:
     start = (page - 1) * page_size
     page_sessions = sessions[start:start + page_size]
 
+    all_sessions = list(index.values())
+    client_counts: dict[str, int] = {}
+    total_errors = 0
+    for s in all_sessions:
+        client_counts[s.client] = client_counts.get(s.client, 0) + 1
+        if s.has_errors:
+            total_errors += 1
+    total_all = len(all_sessions)
+
     return web.json_response({
         "sessions": [
             {
@@ -85,6 +94,12 @@ async def handle_sessions(request: web.Request) -> web.Response:
         "total": total,
         "page": page,
         "page_size": page_size,
+        "stats": {
+            "total_sessions": total_all,
+            "client_counts": client_counts,
+            "error_sessions": total_errors,
+            "success_rate": round((total_all - total_errors) / total_all * 100, 1) if total_all else 0,
+        },
     })
 
 
@@ -101,12 +116,48 @@ async def handle_session_detail(request: web.Request) -> web.Response:
     spans = parse_jsonl_file(meta.file_path)
     tree = build_span_tree(spans)
 
+    turn_numbers: set[int] = set()
+    tool_count = 0
+    skill_count = 0
+    prompt_count = 0
+    success_count = 0
+    failure_count = 0
+    for span in spans:
+        event = span.get("event")
+        turn = span.get("turn")
+        if turn is not None:
+            turn_numbers.add(turn)
+        if event == "prompt":
+            prompt_count += 1
+        elif event == "skill_invocation":
+            skill_count += 1
+        elif event == "tool":
+            if (span.get("tool_name") or "").lower() == "skill":
+                skill_count += 1
+            else:
+                tool_count += 1
+            if span.get("status") == "success":
+                success_count += 1
+            elif span.get("status") == "failure":
+                failure_count += 1
+
+    total_calls = success_count + failure_count
+
     return web.json_response({
         "client": client,
         "session_id": session_id,
         "start_time": meta.start_time,
         "last_activity": meta.last_activity,
         "spans": tree,
+        "stats": {
+            "turns": len(turn_numbers),
+            "tools": tool_count,
+            "skills": skill_count,
+            "prompts": prompt_count,
+            "success": success_count,
+            "failure": failure_count,
+            "success_rate": round(success_count / total_calls * 100, 1) if total_calls else 100.0,
+        },
     })
 
 
