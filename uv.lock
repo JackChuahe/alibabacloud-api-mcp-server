@@ -132,9 +132,10 @@ sdist = { url = "https://files.pythonhosted.org/packages/ab/98/d7111245f17935bf7
 
 [[package]]
 name = "alibabacloud-mcp-proxy"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "alibabacloud-credentials" },
     { name = "alibabacloud-openapi-util" },
     { name = "alibabacloud-tea-openapi" },
@@ -151,6 +152,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "alibabacloud-credentials", specifier = ">=1.0.8" },
     { name = "alibabacloud-openapi-util", specifier = ">=0.2.4" },
     { name = "alibabacloud-tea-openapi", specifier = ">=0.4.4" },
