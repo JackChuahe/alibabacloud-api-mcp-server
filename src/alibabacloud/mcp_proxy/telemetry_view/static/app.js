@@ -255,9 +255,20 @@ function buildTraceDetailHTML(data) {
             <div class="trace-tree" id="trace-tree">
                 ${buildTreeHTML(data.spans, 0)}
             </div>
-            <div class="trace-timeline" id="trace-timeline">
-                <div class="timeline-scale">${buildTimeScale(timeRange)}</div>
-                ${buildTimelineHTML(flatSpans, timeRange)}
+            <div class="trace-right-panel">
+                <div class="view-toggle">
+                    <button class="view-toggle-btn active" data-view="timeline">Timeline</button>
+                    <button class="view-toggle-btn" data-view="graph">Graph</button>
+                    <button class="view-toggle-btn fullscreen-btn" id="graph-fullscreen-btn" title="Fullscreen" style="margin-left:auto;display:none">&#x26F6;</button>
+                </div>
+                <div class="trace-timeline" id="trace-timeline">
+                    <div class="timeline-scale">${buildTimeScale(timeRange)}</div>
+                    ${buildTimelineHTML(flatSpans, timeRange)}
+                </div>
+                <div class="trace-graph" id="trace-graph" style="display:none">
+                    ${buildGraphHTML(data.spans)}
+                    <div class="graph-tooltip" id="graph-tooltip" style="display:none"></div>
+                </div>
             </div>
         </div>
         <div class="detail-panel" id="detail-panel" style="display:none">
@@ -331,23 +342,202 @@ function buildTimeScale(timeRange) {
     return scale;
 }
 
+// === Graph View ===
+function buildGraphHTML(spans) {
+    const turns = groupByTurn(spans);
+    const nodeW = 160, nodeH = 32, padX = 20, padY = 16, turnPadTop = 36, turnPadBot = 16;
+    const turnGap = 24, arrowGap = 12;
+    let totalHeight = 0;
+    const turnLayouts = [];
+
+    for (const turn of turns) {
+        const innerH = turn.spans.length * (nodeH + padY) - padY;
+        const boxH = turnPadTop + innerH + turnPadBot;
+        turnLayouts.push({ turn, y: totalHeight, boxH, spans: turn.spans });
+        totalHeight += boxH + turnGap;
+    }
+
+    const svgW = nodeW + padX * 2 + 40;
+    const svgH = Math.max(totalHeight, 200);
+
+    let svg = `<svg class="graph-svg" viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}">`;
+    svg += '<defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="var(--text-tertiary)"/></marker></defs>';
+
+    const allNodes = [];
+
+    for (let ti = 0; ti < turnLayouts.length; ti++) {
+        const tl = turnLayouts[ti];
+        const boxX = 10, boxW = svgW - 20;
+        svg += `<rect x="${boxX}" y="${tl.y}" width="${boxW}" height="${tl.boxH}" rx="6" fill="none" stroke="var(--border)" stroke-dasharray="4 3" stroke-width="1.5"/>`;
+        svg += `<text x="${boxX + 8}" y="${tl.y + 14}" font-size="10" fill="var(--text-tertiary)" font-family="var(--font)">Turn ${tl.turn.turn}</text>`;
+
+        for (let si = 0; si < tl.spans.length; si++) {
+            const span = tl.spans[si];
+            const nx = padX + 10;
+            const ny = tl.y + turnPadTop + si * (nodeH + padY);
+            const color = getSpanColor(span);
+            const label = getSpanLabel(span).slice(0, 22);
+            const statusBorder = span.status === 'failure' ? 'var(--span-error)' : color;
+
+            svg += `<rect class="graph-node" data-span-id="${escapeHtml(span.span_id)}" x="${nx}" y="${ny}" width="${nodeW}" height="${nodeH}" rx="4" fill="var(--bg-primary)" stroke="${statusBorder}" stroke-width="1.5" style="cursor:pointer"/>`;
+            svg += `<text x="${nx + 8}" y="${ny + 20}" font-size="11" fill="var(--text-primary)" font-family="var(--font)" pointer-events="none">${escapeHtml(label)}</text>`;
+
+            allNodes.push({ span, cx: nx + nodeW / 2, cy: ny + nodeH / 2, top: ny, bot: ny + nodeH });
+
+            if (si > 0) {
+                const prevBot = ny - padY;
+                const curTop = ny;
+                svg += `<line x1="${nx + nodeW / 2}" y1="${prevBot}" x2="${nx + nodeW / 2}" y2="${curTop}" stroke="var(--text-tertiary)" stroke-width="1" marker-end="url(#arrowhead)"/>`;
+            }
+        }
+
+        if (ti > 0) {
+            const prevTl = turnLayouts[ti - 1];
+            const prevBotY = prevTl.y + prevTl.boxH;
+            const curTopY = tl.y;
+            const midX = svgW / 2;
+            svg += `<line x1="${midX}" y1="${prevBotY}" x2="${midX}" y2="${curTopY}" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#arrowhead)"/>`;
+        }
+    }
+
+    svg += '</svg>';
+    return svg;
+}
+
+function groupByTurn(spans) {
+    const turnMap = {};
+    const flatSpans = flattenTree(spans);
+    for (const span of flatSpans) {
+        const turn = span.turn != null ? span.turn : 0;
+        if (!turnMap[turn]) turnMap[turn] = { turn, spans: [] };
+        turnMap[turn].spans.push(span);
+    }
+    const turns = Object.values(turnMap);
+    turns.sort((a, b) => a.turn - b.turn);
+    for (const t of turns) {
+        t.spans.sort((a, b) => (a.start_timestamp || '').localeCompare(b.start_timestamp || ''));
+    }
+    return turns;
+}
+
+function initGraphPanZoom(container) {
+    const graphEl = container.querySelector('#trace-graph');
+    if (!graphEl) return;
+    const svg = graphEl.querySelector('.graph-svg');
+    if (!svg) return;
+
+    let scale = 1, panX = 0, panY = 0, dragging = false, startX = 0, startY = 0;
+
+    function applyTransform() {
+        svg.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    }
+
+    function centerGraph() {
+        const containerW = graphEl.clientWidth;
+        const containerH = graphEl.clientHeight;
+        const svgW = svg.viewBox.baseVal.width;
+        const svgH = svg.viewBox.baseVal.height;
+        scale = Math.min(containerW / svgW, containerH / svgH, 1) * 0.9;
+        panX = (containerW - svgW * scale) / 2;
+        panY = (containerH - svgH * scale) / 2;
+        applyTransform();
+    }
+
+    // Center when graph becomes visible
+    const observer = new MutationObserver(() => {
+        if (graphEl.offsetParent !== null && graphEl.style.display !== 'none') {
+            setTimeout(centerGraph, 50);
+        }
+    });
+    observer.observe(graphEl, { attributes: true, attributeFilter: ['style'] });
+
+    graphEl.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        scale = Math.min(Math.max(scale * delta, 0.3), 3);
+        applyTransform();
+    }, { passive: false });
+
+    graphEl.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('graph-node')) return;
+        dragging = true;
+        startX = e.clientX - panX;
+        startY = e.clientY - panY;
+        graphEl.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        panX = e.clientX - startX;
+        panY = e.clientY - startY;
+        applyTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+        dragging = false;
+        graphEl.style.cursor = 'grab';
+    });
+
+    // Fullscreen
+    const fsBtn = container.querySelector('#graph-fullscreen-btn');
+    if (fsBtn) {
+        fsBtn.addEventListener('click', () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                graphEl.requestFullscreen().then(() => {
+                    setTimeout(centerGraph, 100);
+                });
+            }
+        });
+        graphEl.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                setTimeout(centerGraph, 100);
+            }
+        });
+    }
+}
+
 function bindTraceDetailEvents(container, data) {
     const flatSpans = flattenTree(data.spans);
     const spanMap = {};
     for (const s of flatSpans) spanMap[s.span_id] = s;
 
-    container.querySelectorAll('.span-item, .timeline-bar').forEach(el => {
+    function selectSpan(spanId, clickEvent) {
+        if (!spanId || !spanMap[spanId]) return;
+        container.querySelectorAll('.span-item.selected').forEach(s => s.classList.remove('selected'));
+        container.querySelectorAll('.graph-node.selected').forEach(s => s.classList.remove('selected'));
+        const treeItem = container.querySelector(`.span-item[data-span-id="${spanId}"]`);
+        if (treeItem) {
+            treeItem.classList.add('selected');
+            treeItem.scrollIntoView({ block: 'nearest' });
+        }
+        const graphNode = container.querySelector(`.graph-node[data-span-id="${spanId}"]`);
+        if (graphNode) graphNode.classList.add('selected');
+        showSpanDetail(container, spanMap[spanId]);
+
+        if (document.fullscreenElement) {
+            showGraphTooltip(container, spanMap[spanId], clickEvent);
+        }
+    }
+
+    container.querySelectorAll('.span-item, .timeline-bar, .graph-node').forEach(el => {
         el.addEventListener('click', (e) => {
-            const spanId = el.dataset.spanId;
-            if (!spanId || !spanMap[spanId]) return;
-
-            container.querySelectorAll('.span-item.selected').forEach(s => s.classList.remove('selected'));
-            const treeItem = container.querySelector(`.span-item[data-span-id="${spanId}"]`);
-            if (treeItem) treeItem.classList.add('selected');
-
-            showSpanDetail(container, spanMap[spanId]);
+            e.stopPropagation();
+            selectSpan(el.dataset.spanId, e);
         });
     });
+
+    // Close tooltip on background click in fullscreen
+    const graphEl = container.querySelector('#trace-graph');
+    if (graphEl) {
+        graphEl.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('graph-node') && !e.target.closest('.graph-tooltip')) {
+                const tooltip = container.querySelector('#graph-tooltip');
+                if (tooltip) tooltip.style.display = 'none';
+            }
+        });
+    }
 
     container.querySelectorAll('.span-item .expand-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -362,6 +552,29 @@ function bindTraceDetailEvents(container, data) {
             }
         });
     });
+
+    // View toggle
+    const fsBtn = container.querySelector('#graph-fullscreen-btn');
+    container.querySelectorAll('.view-toggle-btn[data-view]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            container.querySelectorAll('.view-toggle-btn[data-view]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const view = btn.dataset.view;
+            const timeline = container.querySelector('#trace-timeline');
+            const graph = container.querySelector('#trace-graph');
+            if (view === 'graph') {
+                timeline.style.display = 'none';
+                graph.style.display = '';
+                if (fsBtn) fsBtn.style.display = '';
+            } else {
+                timeline.style.display = '';
+                graph.style.display = 'none';
+                if (fsBtn) fsBtn.style.display = 'none';
+            }
+        });
+    });
+
+    initGraphPanZoom(container);
 }
 
 function showSpanDetail(container, span) {
@@ -423,6 +636,60 @@ function showSpanDetail(container, span) {
     }
 
     body.innerHTML = html;
+}
+
+function showGraphTooltip(container, span, clickEvent) {
+    const tooltip = container.querySelector('#graph-tooltip');
+    if (!tooltip) return;
+
+    const statusBadge = span.status ? `<span class="span-status-badge ${span.status}">${span.status}</span>` : '';
+    const duration = span.duration_ms != null ? formatDuration(span.duration_ms) : '';
+
+    let html = `
+        <div class="graph-tooltip-header">
+            <strong>${escapeHtml(getSpanLabel(span))}</strong>
+            <button class="graph-tooltip-close">&times;</button>
+        </div>
+        <table class="graph-tooltip-table">
+            <tr><td>Event</td><td>${escapeHtml(span.event)}</td></tr>
+            ${span.tool_name ? `<tr><td>Tool</td><td>${escapeHtml(span.tool_name)}</td></tr>` : ''}
+            ${span.skill_name ? `<tr><td>Skill</td><td>${escapeHtml(span.skill_name)}</td></tr>` : ''}
+            ${duration ? `<tr><td>Duration</td><td>${duration}</td></tr>` : ''}
+            ${span.status ? `<tr><td>Status</td><td>${statusBadge}</td></tr>` : ''}
+            ${span.error_message ? `<tr><td>Error</td><td style="color:var(--span-error)">${escapeHtml(span.error_message)}</td></tr>` : ''}
+            ${span.request_id ? `<tr><td>Request ID</td><td style="font-family:var(--font-mono);font-size:11px">${escapeHtml(span.request_id)}</td></tr>` : ''}
+            ${span.stop_reason ? `<tr><td>Stop</td><td>${escapeHtml(span.stop_reason)}</td></tr>` : ''}
+            <tr><td>Start</td><td>${formatTime(span.start_timestamp)}</td></tr>
+            <tr><td>End</td><td>${formatTime(span.end_timestamp)}</td></tr>
+            <tr><td>Span ID</td><td style="font-family:var(--font-mono);font-size:11px">${escapeHtml(span.span_id)}</td></tr>
+        </table>
+    `;
+
+    if (span.prompt) {
+        html += `<div class="graph-tooltip-section"><strong>Prompt</strong><div class="graph-tooltip-code">${escapeHtml(span.prompt.slice(0, 200))}${span.prompt.length > 200 ? '...' : ''}</div></div>`;
+    }
+    if (span.tool_input) {
+        const inputStr = JSON.stringify(span.tool_input, null, 2);
+        html += `<div class="graph-tooltip-section"><strong>Input</strong><div class="graph-tooltip-code">${escapeHtml(inputStr.slice(0, 300))}${inputStr.length > 300 ? '...' : ''}</div></div>`;
+    }
+
+    tooltip.innerHTML = html;
+    tooltip.style.display = '';
+
+    // Position near click
+    const graphEl = container.querySelector('#trace-graph');
+    const rect = graphEl.getBoundingClientRect();
+    let x = clickEvent.clientX - rect.left + 12;
+    let y = clickEvent.clientY - rect.top + 12;
+    if (x + 340 > rect.width) x = Math.max(10, x - 360);
+    if (y + 300 > rect.height) y = Math.max(10, y - 320);
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+
+    tooltip.querySelector('.graph-tooltip-close').addEventListener('click', (e) => {
+        e.stopPropagation();
+        tooltip.style.display = 'none';
+    });
 }
 
 // === Helpers ===
