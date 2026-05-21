@@ -222,6 +222,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_plugin_telemetry_arguments(plugin_telemetry_parser)
 
+    # --- telemetry-view sub-command ---
+    telemetry_view_parser = subparsers.add_parser(
+        "telemetry-view",
+        help="Launch local web UI to browse telemetry traces.",
+    )
+    telemetry_view_parser.add_argument(
+        "--port", type=int, default=18321, dest="tv_port",
+        help="Local server port (default: 18321).",
+    )
+    telemetry_view_parser.add_argument(
+        "--no-open", action="store_true", dest="tv_no_open",
+        help="Don't auto-open browser.",
+    )
+
     return parser
 
 
@@ -426,6 +440,18 @@ def _configure_oneshot_logging(args: argparse.Namespace) -> None:
     root.addHandler(handler)
 
 
+def _run_telemetry_view_command(args: argparse.Namespace) -> int:
+    """Execute the ``telemetry-view`` sub-command."""
+    import asyncio
+    from alibabacloud.mcp_proxy.telemetry_view import run_telemetry_view
+
+    try:
+        asyncio.run(run_telemetry_view(port=args.tv_port, no_open=args.tv_no_open))
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def _run_plugin_telemetry_command(args: argparse.Namespace) -> int:
     """Execute `server plugin-telemetry`: build payload, POST it, surface result."""
     # Local import keeps the proxy startup path free from any telemetry imports.
@@ -460,6 +486,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "plugin-telemetry":
         return _run_plugin_telemetry_command(args)
+
+    if args.command == "telemetry-view":
+        return _run_telemetry_view_command(args)
 
     # Default: run the proxy (covers both explicit "proxy" and no sub-command)
     return _run_proxy_command(args)
