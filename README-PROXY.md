@@ -177,7 +177,7 @@ uvx alibabacloud.mcp-proxy@latest plugin-telemetry \
 
 `plugin-telemetry` 走"尽力而为（best-effort）"模型：内置最多 4 次尝试、每次连接/读取超时 3 秒，失败时仅在 stderr 输出 WARN/ERROR 日志，**不会**抛出异常或影响调用方主流程。退出码：`0` 成功 / `1` 重试用尽仍失败 / `2` 参数错误。
 
-## 遥测可视化（Telemetry View）
+## 本地遥测可视化（Telemetry View）
 
 `telemetry-view` 子命令会启动一个本地 Web 服务，用于浏览和分析插件遥测产生的 trace 数据。支持多客户端（Claude Code、VS Code、Copilot CLI、Codex、Qoderwork）的 session 浏览、span 层级树、Gantt 时间线、Graph 流程图以及实时更新。
 
